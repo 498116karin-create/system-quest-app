@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#050914">
+<title>System: Daily Quest</title>
+<style>
+:root{--bg:#050914;--line:#2f7dff;--glow:#5aa2ff;--text:#dce9ff;--dim:#7f95bd;--red:#ff4d5e;--ok:#4be3a6}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font-family:"Noto Sans Thai","Sarabun",system-ui,sans-serif}
+body{min-height:100vh;background:radial-gradient(ellipse at 50% -10%,#10265a 0,var(--bg) 60%) fixed;padding:calc(16px + env(safe-area-inset-top,0px)) 16px calc(16px + env(safe-area-inset-bottom,0px))}
+main{max-width:460px;margin:0 auto}
+.win{border:1px solid var(--line);background:rgba(11,21,48,.85);box-shadow:0 0 18px rgba(47,125,255,.35),inset 0 0 22px rgba(47,125,255,.12);padding:16px;margin-bottom:14px}
+.win.pen{border-color:var(--red);box-shadow:0 0 22px rgba(255,77,94,.45),inset 0 0 22px rgba(255,77,94,.15)}
+h1{font-size:18px;margin:0 0 4px;text-align:center;text-shadow:0 0 10px var(--glow)}
+.pen h1{color:var(--red);text-shadow:0 0 10px var(--red)}
+.sub{text-align:center;color:var(--dim);font-size:13px;margin:0 0 12px}
+.stats{display:flex;justify-content:space-between;font-size:14px;margin-bottom:8px}
+.bar{height:8px;background:#0a1226;border:1px solid #1d3770}
+.bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#2f7dff,#7fc0ff);box-shadow:0 0 8px var(--glow)}
+.timer{text-align:center;font-size:26px;font-variant-numeric:tabular-nums;margin:6px 0 2px;text-shadow:0 0 10px var(--glow)}
+.q{padding:10px 0;border-top:1px solid #1a2f63}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.cnt{font-variant-numeric:tabular-nums;color:var(--glow)}
+.q.done .cnt{color:var(--ok)}.q.done .name{text-decoration:line-through;color:var(--dim)}
+.btns{display:flex;gap:8px;margin-top:8px}
+button{font:inherit;color:var(--text);background:transparent;border:1px solid var(--line);padding:8px 12px;min-height:44px;cursor:pointer}
+button:active{background:rgba(47,125,255,.3)}button:focus-visible{outline:2px solid #fff;outline-offset:2px}
+.full{flex:1}
+.pen button{border-color:var(--red)}
+.pitem{display:flex;gap:10px;align-items:center;padding:10px 0;font-size:15px}
+.pitem input{width:22px;height:22px;accent-color:var(--red)}
+.msg{text-align:center;color:var(--ok);font-size:14px;min-height:20px;margin:6px 0 0}
+.rest{border:0;color:var(--dim);font-size:13px;text-decoration:underline;display:block;margin:4px auto}
+#scan{position:fixed;inset:0;background:#000;z-index:9;display:none;flex-direction:column}
+#scan.on{display:flex}
+#cv{flex:1;min-height:0;width:100%;object-fit:contain;background:#000}
+#vid{display:none}
+.hud{position:absolute;top:calc(10px + env(safe-area-inset-top,0px));left:0;right:0;text-align:center;pointer-events:none}
+#big{font-size:64px;font-weight:700;text-shadow:0 0 14px var(--glow);font-variant-numeric:tabular-nums}
+#stat{font-size:15px;padding:0 16px}
+.bot{padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px));display:flex;gap:8px;background:var(--bg)}
+</style>
+</head>
+<body>
+<main>
+  <section class="win">
+    <h1>[ SYSTEM ]</h1>
+    <p class="sub" id="rank"></p>
+    <div class="stats"><span id="lv"></span><span id="streak"></span></div>
+    <div class="bar"><i id="xpbar"></i></div>
+    <div class="stats" style="margin-top:6px;color:var(--dim);font-size:12px"><span id="xp"></span><span>XP</span></div>
+  </section>
+  <section class="win pen" id="penwin" hidden>
+    <h1>[ เขตลงโทษ ]</h1>
+    <p class="sub">เมื่อวานไม่ผ่านเควสต์ ทำให้ครบเพื่อปลดบทลงโทษ</p>
+    <div id="plist"></div>
+  </section>
+  <section class="win">
+    <h1>[ เควสต์ประจำวัน ]</h1>
+    <p class="sub" id="qsub">กดสแกนแล้ววางมือถือให้กล้องเห็นตัวคุณด้านข้าง</p>
+    <div class="timer" id="timer"></div>
+    <p class="sub">เวลาที่เหลือก่อนเที่ยงคืน</p>
+    <div id="qlist"></div>
+    <p class="msg" id="msg"></p>
+    <button class="rest" id="restbtn">วันนี้ป่วยหรือบาดเจ็บ ขอพัก (ไม่โดนลงโทษ)</button>
+  </section>
+</main>
+
+<style>
+#run{position:fixed;inset:0;background:var(--bg);z-index:9;display:none;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:24px;text-align:center}
+#run.on{display:flex}
+#rbig{font-size:72px;font-weight:700;text-shadow:0 0 14px var(--glow);font-variant-numeric:tabular-nums}
+.rrow{display:flex;gap:32px;font-size:20px;font-variant-numeric:tabular-nums}
+#rstat{color:var(--dim);font-size:14px;min-height:40px;max-width:320px}
+</style>
+<div id="run">
+  <div class="sub">ระยะทางวันนี้ (กม.)</div>
+  <div id="rbig">0.00</div>
+  <div class="rrow"><span id="rtime">00:00</span><span id="rpace">--</span></div>
+  <div id="rstat"></div>
+  <button class="full" id="rstop" style="max-width:320px;width:100%">หยุดวิ่ง</button>
+</div>
+<div id="scan">
+  <canvas id="cv"></canvas><video id="vid" playsinline muted></video>
+  <div class="hud"><div id="big">0</div><div id="stat"></div></div>
+  <div class="bot"><button class="full" id="flip">สลับกล้อง</button><button class="full" id="stop">หยุดสแกน</button></div>
+</div>
+
+<script type="module">
+import {PoseLandmarker,FilesetResolver} from "./vision_bundle.mjs";
+var Q=[
+ {id:'pu',name:'วิดพื้น',goal:50,unit:'ครั้ง',cam:1,j:[[11,13,15],[12,14,16]],lo:95,hi:150,tip:'วางมือถือด้านข้าง ให้เห็นทั้งตัว'},
+ {id:'su',name:'ซิทอัพ',goal:50,unit:'ครั้ง',cam:1,j:[[11,23,25],[12,24,26]],lo:80,hi:140,tip:'วางมือถือด้านข้าง ให้เห็นไหล่ สะโพก เข่า'},
+ {id:'sq',name:'สควอต',goal:50,unit:'ครั้ง',cam:1,j:[[23,25,27],[24,26,28]],lo:105,hi:155,tip:'ยืนให้เห็นทั้งตัว ทำให้ต่ำจนเข่างอ'},
+ {id:'run',name:'วิ่งหรือเดินเร็ว',goal:3,unit:'กม.',gps:1}
+];
+var PEN=[{id:'pl',name:'แพลงก์ 2 นาที'},{id:'bp',name:'เบอร์ปี 20 ครั้ง'},{id:'sq2',name:'สควอต 30 ครั้ง'}];
+var RK=['E','D','C','B','A','S'],KEY='system-quest-cam-v1';
+var $=function(i){return document.getElementById(i)};
+function today(){var d=new Date();return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate()}
+function fresh(){return {day:today(),prog:{},pdone:{},xp:0,streak:0,penalty:false,rested:false,done:false}}
+var S=fresh();
+try{var r=localStorage.getItem(KEY);if(r)S=Object.assign(fresh(),JSON.parse(r))}catch(e){}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+function roll(){if(S.day!==today()){if(!S.done&&!S.rested){S.penalty=true;S.pdone={};S.streak=0;S.xp=Math.max(0,S.xp-50)}S.day=today();S.prog={};S.done=false;S.rested=false;save()}}
+function flash(t){$('msg').textContent=t;setTimeout(function(){$('msg').textContent=''},4000)}
+function check(){if(!S.done&&Q.every(function(q){return (S.prog[q.id]||0)>=q.goal})){S.done=true;S.streak++;S.xp+=100;flash('เควสต์สำเร็จ +100 XP')}}
+function render(){
+  roll();var L=1+Math.floor(S.xp/300);
+  $('lv').textContent='เลเวล '+L;
+  $('rank').textContent='ฮันเตอร์ระดับ '+RK[Math.min(5,Math.floor((L-1)/3))];
+  $('streak').textContent='ต่อเนื่อง '+S.streak+' วัน';
+  $('xp').textContent=(S.xp%300)+' / 300';
+  $('xpbar').style.width=(S.xp%300)/3+'%';
+  $('penwin').hidden=!S.penalty;
+  var pl=$('plist');pl.innerHTML='';
+  PEN.forEach(function(p){var l=document.createElement('label');l.className='pitem';var c=document.createElement('input');c.type='checkbox';c.checked=!!S.pdone[p.id];
+    c.onchange=function(){S.pdone[p.id]=c.checked;if(PEN.every(function(x){return S.pdone[x.id]})){S.penalty=false;flash('ปลดบทลงโทษแล้ว')}save();render()};
+    l.appendChild(c);l.appendChild(document.createTextNode(p.name));pl.appendChild(l)});
+  var ql=$('qlist');ql.innerHTML='';
+  Q.forEach(function(q){
+    var v=S.prog[q.id]||0,d=v>=q.goal,el=document.createElement('div');el.className='q'+(d?' done':'');
+    el.innerHTML='<div class="row"><span class="name">'+q.name+'</span><span class="cnt">'+fmt(v)+' / '+q.goal+' '+q.unit+'</span></div>';
+    if(!d&&!S.rested){var b=document.createElement('div');b.className='btns';var a=document.createElement('button');a.className='full';
+      if(q.gps){a.textContent='เริ่มวิ่งด้วย GPS';a.onclick=function(){startRun(q)}}
+      else{a.textContent='สแกนด้วยกล้อง';a.onclick=function(){startScan(q)}}
+      b.appendChild(a);el.appendChild(b)}
+    ql.appendChild(el)});
+  $('restbtn').hidden=S.done||S.rested;
+  if(S.rested)$('qsub').textContent='วันพัก: ดูแลร่างกายแล้วกลับมาใหม่พรุ่งนี้';
+  else if(S.done)$('qsub').textContent='เควสต์วันนี้สำเร็จแล้ว';
+}
+$('restbtn').onclick=function(){S.rested=true;save();render()};
+setInterval(function(){var n=new Date(),e=new Date(n.getFullYear(),n.getMonth(),n.getDate()+1),s=Math.floor((e-n)/1000);
+  $('timer').textContent=[Math.floor(s/3600),Math.floor(s%3600/60),s%60].map(function(x){return String(x).padStart(2,'0')}).join(':');
+  if(S.day!==today())render()},1000);
+
+// ---- camera scan ----
+var landmarker=null,stream=null,running=false,facing='user',cur=null,phase='hi',ang=null,sess=0,okDepth=true,lastTs=-1,actx=null;
+function beep(f){try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();var o=actx.createOscillator(),g=actx.createGain();o.frequency.value=f;g.gain.value=.15;o.connect(g);g.connect(actx.destination);o.start();o.stop(actx.currentTime+.12)}catch(e){}}
+function angle(a,b,c,w,h){var v1=[(a.x-b.x)*w,(a.y-b.y)*h],v2=[(c.x-b.x)*w,(c.y-b.y)*h];
+  var d=Math.atan2(v1[0]*v2[1]-v1[1]*v2[0],v1[0]*v2[0]+v1[1]*v2[1]);return Math.abs(d*180/Math.PI)}
+async function loadModel(){
+  if(landmarker)return;$('stat').textContent='กำลังโหลดโมเดล (ครั้งแรกอาจนาน)...';
+  var f=await FilesetResolver.forVisionTasks("./wasm");
+  var mk=function(dl){return PoseLandmarker.createFromOptions(f,{baseOptions:{modelAssetPath:"./pose_landmarker_lite.task",delegate:dl},runningMode:"VIDEO",numPoses:1})};try{landmarker=await mk("GPU")}catch(e){landmarker=await mk("CPU")}
+}
+async function openCam(){
+  if(stream)stream.getTracks().forEach(function(t){t.stop()});
+  stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:facing,width:{ideal:640},height:{ideal:480}},audio:false});
+  var v=$('vid');v.srcObject=stream;await v.play();
+}
+async function startScan(q){
+  cur=q;phase='hi';ang=null;sess=0;okDepth=true;lastTs=-1;
+  $('scan').classList.add('on');$('big').textContent=S.prog[q.id]||0;$('stat').textContent=q.tip;
+  try{await loadModel();await openCam()}catch(e){$('stat').textContent='เปิดกล้องหรือโหลดโมเดลไม่ได้: ต้องเปิดผ่าน HTTPS และอนุญาตกล้อง';return}
+  $('stat').textContent=q.tip;running=true;loop();
+}
+function stopScan(){running=false;if(stream){stream.getTracks().forEach(function(t){t.stop()});stream=null}$('scan').classList.remove('on');save();render()}
+$('stop').onclick=stopScan;
+$('flip').onclick=async function(){facing=facing==='user'?'environment':'user';try{await openCam()}catch(e){}};
+function loop(){
+  if(!running)return;
+  var v=$('vid'),cv=$('cv');
+  if(v.readyState>=2&&v.currentTime!==lastTs){
+    lastTs=v.currentTime;
+    var w=v.videoWidth,h=v.videoHeight;if(cv.width!==w){cv.width=w;cv.height=h}
+    var ctx=cv.getContext('2d');ctx.drawImage(v,0,0,w,h);
+    var res=landmarker.detectForVideo(v,performance.now()),lm=res.landmarks&&res.landmarks[0];
+    if(lm){
+      var best=null,bs=-1;cur.j.forEach(function(t){var s=t.reduce(function(a,i){return a+(lm[i].visibility||0)},0);if(s>bs){bs=s;best=t}});
+      ctx.fillStyle='#5aa2ff';lm.forEach(function(p){if((p.visibility||0)>.5){ctx.beginPath();ctx.arc(p.x*w,p.y*h,5,0,7);ctx.fill()}});
+      if(bs/3>.6){
+        var a=angle(lm[best[0]],lm[best[1]],lm[best[2]],w,h);ang=ang==null?a:ang*.5+a*.5;
+        if(cur.id==='pu'){var sd=best[0]===11?[11,23,27]:[12,24,28],st=angle(lm[sd[0]],lm[sd[1]],lm[sd[2]],w,h)}
+        if(phase==='hi'&&ang<cur.lo){phase='lo';okDepth=cur.id!=='pu'||st>150}
+        else if(phase==='lo'&&ang>cur.hi){phase='hi';
+          if(okDepth){S.prog[cur.id]=(S.prog[cur.id]||0)+1;sess++;beep(880);$('big').textContent=S.prog[cur.id];$('stat').textContent='นับแล้ว';
+            if(S.prog[cur.id]>=cur.goal){beep(1320);check();save();flash('ครบเควสต์ '+cur.name);stopScan();return}save()}
+          else{beep(220);$('stat').textContent='ไม่นับ: ลำตัวต้องตรง'}}
+        else if(phase==='hi'&&ang>=cur.lo)$('stat').textContent=(sess?'ทำต่อ':'เริ่มได้เลย')+' (มุม '+Math.round(ang)+'°)';
+        else if(phase==='lo')$('stat').textContent='ดันกลับขึ้นให้สุด';
+      }else $('stat').textContent='ยังมองไม่เห็นตัวชัด ถอยหรือขยับมือถือ';
+    }
+  }
+  requestAnimationFrame(loop);
+}
+// ---- GPS run ----
+var wid=null,rq=null,lastP=null,rstart=0,rtm=null,wake=null,sd=0;
+function fmt(v){return Math.round(v*100)/100}
+function hav(a,b,c,d){var t=Math.PI/180,x=Math.pow(Math.sin((c-a)*t/2),2)+Math.cos(a*t)*Math.cos(c*t)*Math.pow(Math.sin((d-b)*t/2),2);return 12742000*Math.asin(Math.sqrt(x))}
+async function startRun(q){
+  if(!navigator.geolocation){flash('เครื่องนี้ไม่รองรับ GPS');return}
+  rq=q;lastP=null;sd=0;rstart=Date.now();
+  $('run').classList.add('on');$('rbig').textContent=fmt(S.prog.run||0).toFixed(2);$('rstat').textContent='กำลังหาตำแหน่ง GPS...';
+  try{if(navigator.wakeLock)wake=await navigator.wakeLock.request('screen')}catch(e){}
+  wid=navigator.geolocation.watchPosition(onPos,function(e){$('rstat').textContent=e.code===1?'ไม่ได้อนุญาตตำแหน่ง ไปเปิดในตั้งค่าเบราว์เซอร์':'หาสัญญาณ GPS ไม่ได้ ออกไปที่โล่ง'},{enableHighAccuracy:true,maximumAge:0,timeout:20000});
+  rtm=setInterval(rtick,1000);
+}
+function onPos(p){
+  var c=p.coords;
+  if(c.accuracy>25){$('rstat').textContent='สัญญาณยังไม่แม่น (±'+Math.round(c.accuracy)+' ม.) ออกไปที่โล่ง';return}
+  var cp={la:c.latitude,lo:c.longitude,t:p.timestamp};
+  if(!lastP){lastP=cp;$('rstat').textContent='พร้อมแล้ว เริ่มวิ่งได้เลย';return}
+  var d=hav(lastP.la,lastP.lo,cp.la,cp.lo);
+  if(d<4)return;
+  var sp=d/Math.max(1,(cp.t-lastP.t)/1000);
+  lastP=cp;
+  if(sp>8){$('rstat').textContent='เร็วเกินกว่าวิ่ง ไม่นับระยะ (ห้ามนั่งรถ)';return}
+  sd+=d/1000;S.prog.run=Math.min(rq.goal,(S.prog.run||0)+d/1000);save();
+  $('rbig').textContent=fmt(S.prog.run).toFixed(2);$('rstat').textContent='กำลังนับระยะ';
+  if(S.prog.run>=rq.goal){beep(1320);check();save();flash('ครบเควสต์ วิ่งแล้ว');stopRun()}
+}
+function rtick(){
+  var s=Math.floor((Date.now()-rstart)/1000);
+  $('rtime').textContent=String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
+  if(sd>.1){var pm=s/60/sd;$('rpace').textContent=Math.floor(pm)+':'+String(Math.round(pm%1*60)%60).padStart(2,'0')+' /กม.'}
+}
+function stopRun(){
+  if(wid!=null)navigator.geolocation.clearWatch(wid);wid=null;clearInterval(rtm);
+  try{if(wake)wake.release()}catch(e){}wake=null;
+  $('run').classList.remove('on');save();render();
+}
+$('rstop').onclick=stopRun;
+// ---- notifications ----
+var LN=(window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.LocalNotifications)||null;
+async function notif(){
+  if(!LN)return;
+  try{
+    var p=await LN.checkPermissions();
+    if(p.display!=='granted'){p=await LN.requestPermissions();if(p.display!=='granted')return}
+    await LN.cancel({notifications:[{id:1},{id:2},{id:3},{id:4}]});
+    var n=new Date(),list=[];
+    var at=function(h,m,d){return new Date(n.getFullYear(),n.getMonth(),n.getDate()+d,h,m,0)};
+    var add=function(id,t,b,d){if(d>n)list.push({id:id,title:t,body:b,schedule:{at:d,allowWhileIdle:true}})};
+    if(!S.done&&!S.rested){
+      add(1,'[ SYSTEM ]','เควสต์ประจำวันยังไม่เสร็จ เหลืออีก 4 ชั่วโมง',at(20,0,0));
+      add(2,'[ SYSTEM ]','เหลือ 1 ชั่วโมง ถ้าไม่ทำจะโดนบทลงโทษ',at(23,0,0));
+      add(3,'[ เขตลงโทษ ]','เควสต์ไม่ผ่าน บทลงโทษเปิดแล้ว เปิดแอปเพื่อรับบทลงโทษ',at(0,0,1));
+    }
+    add(4,'[ SYSTEM ]','เควสต์ประจำวันมาแล้ว ลุกขึ้นมาฝึก',at(7,0,1));
+    if(list.length)await LN.schedule({notifications:list});
+  }catch(e){}
+}
+var _render=render;render=function(){_render();notif()};
+render();
+</script>
+</body>
+</html>

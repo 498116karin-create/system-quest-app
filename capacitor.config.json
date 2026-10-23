@@ -1,0 +1,6 @@
+{
+  "appId": "com.rin.systemquest",
+  "appName": "System Quest",
+  "webDir": "www",
+  "server": { "androidScheme": "https" }
+}
